@@ -7,7 +7,7 @@ import Debug
 
 import ElmTest exposing
     ( suite, test
-    , assert, assertEqual, assertNotEqual
+    , assert, assertEqual
     , elementRunner
     )
 
@@ -21,11 +21,13 @@ import Board exposing
     , unpack, pack
     , moveHead, moveTail, crawl
     , liesOnSnake, isAlive
-    , generateFood, generateGame
+    , generateFood, generateGame, tickGame
     )
 
 
 assertNot = assert << not
+
+fieldEqual accessor x y = accessor x == accessor y
 
 
 vectors = suite "Board vectors"
@@ -178,8 +180,67 @@ gameLoop = suite "Board game loop"
                )
         ]
     , suite "tickGame"
-        [
-        ]
+        (let baseGame = { snake = [(44, 12), (35, 12)]
+                        , dir = right
+                        , dead = False
+                        , score = 0
+                        , food = (0, 0)
+                        , seed = Random.initialSeed 123456
+                        }
+        in
+            [ test "dead game ignored"
+                <| assertEqual
+                        { baseGame | dead = True }
+                        (tickGame Nothing { baseGame | dead = True })
+            , test "no direction change"
+                <| assertEqual
+                        { baseGame | snake = [(45, 12), (36, 12)] }
+                        (tickGame Nothing baseGame)
+            , test "with direction change"
+                <| assertEqual
+                        { baseGame | snake = [(44, 11), (44, 12), (36, 12)]
+                                   , dir = up }
+                        (tickGame (Just up) baseGame)
+            , test "eating food"
+                <| assert <|
+                    List.all
+                        (\f -> f
+                            { baseGame | snake = [(45, 12), (36, 12)]
+                                       , score = 1 }
+                            (tickGame Nothing { baseGame | food = (45, 12) })
+                        )
+                        [ fieldEqual .snake
+                        , fieldEqual .dir
+                        , fieldEqual .dead
+                        , fieldEqual .score
+                        , \_ g -> g.food /= (45, 12)
+                        , \_ g -> not (g.food `liesOnSnake` g.snake)
+                        ]
+            , test "hit wall"
+                <| assertEqual
+                        { baseGame | snake = [(-1, 12), (9, 12)]
+                                   , dead = True
+                                   , dir = left }
+                        (tickGame (Just left)
+                            { baseGame | snake = [(0, 12), (10, 12)] })
+            , test "hit self"
+                <| assertEqual
+                        { baseGame
+                            | snake = [(0, 5), (3, 5), (3, 2), (0, 2), (0, 7)]
+                            , dead = True
+                            , dir = left }
+                        (tickGame (Just left)
+                            { baseGame
+                                | snake = [(1, 5), (3, 5), (3, 2), (0, 2), (0, 8)] })
+            , test "walk backwards"
+                <| assertEqual
+                        { baseGame
+                            | snake = [(43, 12), (44, 12), (36, 12)]
+                            , dead = True
+                            , dir = left }
+                        (tickGame (Just left) baseGame)
+            ]
+        )
     ]
 
 

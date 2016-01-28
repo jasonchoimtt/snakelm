@@ -10,6 +10,7 @@ type alias Line = (Point, Point) -- Line segment
 type alias Snake = List Point
 type alias Direction = Point
 
+{-| Game state record -}
 type alias Game =
     { snake: Snake
     , dir: Point
@@ -176,3 +177,42 @@ generateGame seed =
         , food = food
         , seed = seed'
         }
+
+
+{-| Proceeds the game by one tick, taking new input -}
+tickGame : Maybe Direction -> Game -> Game
+tickGame inputDir game =
+    let
+        notDead f game = if game.dead then game else f game
+
+        snakeHead snake = case snake of
+            head :: _ -> head
+            _ -> Debug.crash "Invalid snake"
+
+        doCrawl inputDir game =
+            let
+                dir = Maybe.withDefault game.dir inputDir
+                snake = crawl dir game.snake
+            in
+                { game | snake = snake, dir = dir }
+
+        doDeath game =
+            let
+                dead = not (isAlive game.snake)
+            in
+                { game | dead = dead }
+
+        doFood game =
+            if game.food == snakeHead game.snake
+                then let (food, seed) = generateFood game.snake game.seed in
+                    { game
+                        | score = game.score + 1
+                        , food = food
+                        , seed = seed
+                    }
+                else game
+    in
+        game
+            |> notDead (doCrawl inputDir)
+            |> notDead doDeath
+            |> notDead doFood
