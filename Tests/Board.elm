@@ -5,19 +5,22 @@ import Graphics.Element exposing (Element)
 import ElmTest exposing
     ( suite, test
     , assertEqual, assertNotEqual
-    , elementRunner)
+    , elementRunner
+    )
 
 import Board exposing
     ( left, right, up, down
     , plus, minus
     , norm, normal
+    , cross, dot
+    , liesOn
     , inRange
-    , zip
     , unpack, pack
-    , moveHead, moveTail, crawl)
+    , moveHead, moveTail, crawl, isAlive
+    )
 
 
-utils = suite "Board utilities"
+vectors = suite "Board vectors"
     [ test "plus"
         <| assertEqual (5, 6) (plus (3, 5) (2, 1))
     , suite "norm"
@@ -30,18 +33,42 @@ utils = suite "Board utilities"
         , test "y-direction" <| assertEqual (0, 1) (normal (0, 3))
         , test "zero vector" <| assertEqual (0, 0) (normal (0, 0))
         ]
-    , suite "inRange"
+    , suite "cross"
+        [ test "parallel" <| assertEqual 0 ((3, 0) `cross` (6, 0))
+        , test "perpendicular" <| assertEqual 18 ((3, 0) `cross` (0, 6))
+        , test "zero" <| assertEqual 0 ((3, 0) `cross` (0, 0))
+        , test "slanted" <| assertEqual 12 ((6, 0) `cross` (3, 2))
+        , test "non-associative" <| assertEqual -12 ((3, 2) `cross` (6, 0))
+        ]
+    , suite "dot"
+        [ test "parallel" <| assertEqual 8 ((2, 0) `dot` (4, 0))
+        , test "anti-parallel" <| assertEqual -8 ((2, 0) `dot` (-4, 0))
+        , test "perpendicular" <| assertEqual 0 ((3, 0) `dot` (0, 3))
+        , test "zero vector" <| assertEqual 0 ((0, 0) `dot` (5, 5))
+        , test "45 degrees" <| assertEqual 6 ((3, 0) `dot` (2, 2))
+        ]
+    , suite "liesOn"
+        [ test "in segment"
+            <| assertEqual True ((4, 2) `liesOn` ((-3, 2), (5, 2)))
+        , test "at end point"
+            <| assertEqual True ((4, 2) `liesOn` ((4, 2), (5, 2)))
+        , test "out of segment"
+            <| assertEqual False ((-4, 2) `liesOn` ((-3, 2), (5, 2)))
+        , test "slanted line"
+            <| assertEqual True ((5, 3) `liesOn` ((0, 0), (50, 30)))
+        , test "out of line"
+            <| assertEqual False ((3, 3) `liesOn` ((0, 1), (5, 5)))
+        , test "vertical line"
+            <| assertEqual True ((0, 0) `liesOn` ((0, -5), (0, 5)))
+        ]
+    ]
+
+
+utils = suite "Board utils"
+    [ suite "inRange"
         [ test "normal case" <| assertEqual True (inRange (5, 3))
         , test "out of range" <| assertEqual False (inRange (80, 20))
         , test "out of range" <| assertEqual False (inRange (-1, 0))
-        ]
-    , suite "zip"
-        [ test "normal case"
-            <| assertEqual [(1, 2), (3, 4), (5, 6)] (zip [1, 3, 5] [2, 4, 6])
-        , test "different lengths"
-            <| assertEqual [(1, 2), (3, 4)] (zip [1, 3] [2, 4, 6])
-        , test "empty" 
-            <| assertEqual [] (zip [] [])
         ]
     , suite "unpack"
         [ test "normal case"
@@ -84,17 +111,32 @@ moveSnake = suite "Board snake moving"
             <| assertEqual [(0, 2), (5, 2), (5, 5)]
                     (crawl left [(1, 2), (5, 2), (5, 6)])
         , test "case 2"
-            <| assertEqual[(0, 2), (5, 2)]
+            <| assertEqual [(0, 2), (5, 2)]
                     (crawl left [(1, 2), (5, 2), (5, 3)])
         , test "case 3"
-            <| assertEqual[(1, 1), (1, 2), (5, 2)]
+            <| assertEqual [(1, 1), (1, 2), (5, 2)]
                     (crawl up [(1, 2), (5, 2), (5, 3)])
+        ]
+    , suite "isAlive"
+        [ test "trivial case"
+            <| assertEqual True (isAlive [(3, 5), (8, 5)])
+        , test "hit wall"
+            <| assertEqual False (isAlive [(-1, 5), (6, 5)])
+        , test "almost hit wall"
+            <| assertEqual True (isAlive [(0, 5), (6, 5)])
+        , test "hit self"
+            <| assertEqual False
+                    (isAlive [(0, 5), (3, 5), (3, 2), (0, 2), (0, 7)])
+        , test "almost hit self"
+            <| assertEqual True
+                    (isAlive [(1, 5), (3, 5), (3, 2), (0, 2), (0, 7)])
         ]
     ]
 
 
 tests = suite "Board"
-    [ utils
+    [ vectors
+    , utils
     , moveSnake
     ]
 

@@ -1,12 +1,11 @@
 module Board where
 
-import List exposing (append)
 import List.Extra exposing (init, last)
 
 
 -- Type definitions
 type alias Point = (Int, Int)
-type alias Line = (Point, Point)
+type alias Line = (Point, Point) -- Line segment
 type alias Snake = List Point
 type alias Direction = Point
 
@@ -23,7 +22,7 @@ defaultSnake = [(44, 12), (35, 12)]
 
 
 -- Utility functions
-{-| Checks if a point is within a the board -}
+{-| Checks if the point is within the board -}
 inRange : Point -> Bool
 inRange (x, y) =
     let
@@ -47,22 +46,31 @@ norm : Point -> Int
 norm (x, y) = (abs x) + (abs y)
 
 
-{-| Find the direction of a vector -}
+{-| Find the direction of a vector
+ -  ONLY WORKS IF the vector is along the x- or y-axis -}
 normal : Point -> Point
 normal (x, y) =
     let len = norm (x, y) in
         ( x // len, y // len )
 
 
-{-| Zips two lists into a list of pairs
- -  http://elm-lang.org/examples/zip -}
-zip : List a -> List b -> List (a, b)
-zip xs ys =
-    case (xs, ys) of
-        ((x :: xs'), (y :: ys')) ->
-            (x,y) :: zip xs' ys'
-        (_, _) ->
-            []
+{-| Cross product -}
+cross : Point -> Point -> Int
+cross (x', y') (x, y) = x' * y - y' * x
+
+
+{-| Dot product -}
+dot : Point -> Point -> Int
+dot (x', y') (x, y) = x' * x + y' * y
+
+
+{-| Checks if the point lies within the line segment
+ - http://stackoverflow.com/questions/328107/ -}
+liesOn : Point -> Line -> Bool
+liesOn pt (p, q) =
+    (p `minus` pt) `cross` (pt `minus` q) == 0 &&
+    (p `minus` pt) `dot` (pt `minus` q) >= 0 &&
+    (p `minus` pt) `dot` (pt `minus` q) <= (p `minus` q) `dot` (p `minus` q)
 
 
 {-| Converts a list of points into a list of lines -}
@@ -70,7 +78,7 @@ unpack : List Point -> List Line
 unpack xs =
     case xs of
         x :: xs' ->
-            zip (x :: xs') xs'
+            List.map2 (,) (x :: xs') xs'
         _ ->
             []
 
@@ -106,7 +114,7 @@ moveTail snake = let lines = unpack snake in
             let tHat = normal (t' `minus` t) in
             pack <| if (t `plus` tHat) == t'
                 then head
-                else head `append` [( t', (t `plus` tHat) )]
+                else head `List.append` [( t', (t `plus` tHat) )]
         _ ->
             Debug.crash "Invalid snake"
 
@@ -114,3 +122,13 @@ moveTail snake = let lines = unpack snake in
 {-| Progresses the snake towards a direction -}
 crawl : Direction -> Snake -> Snake
 crawl dir snake = (moveHead dir >> moveTail) snake
+
+
+{-| Determines if the snake lives, i.e. its head has not collided with the wall
+ -  or itself -}
+isAlive : Snake -> Bool
+isAlive snake = case unpack snake of
+    (h', h) :: tail ->
+        inRange h' && not ((List.any) (liesOn h') tail)
+    _ ->
+        Debug.crash "Invalid snake"
