@@ -1,6 +1,7 @@
 module Board where
 
 import List.Extra exposing (init, last)
+import Random
 
 
 -- Type definitions
@@ -8,6 +9,15 @@ type alias Point = (Int, Int)
 type alias Line = (Point, Point) -- Line segment
 type alias Snake = List Point
 type alias Direction = Point
+
+type alias Game =
+    { snake: Snake
+    , dir: Point
+    , dead: Bool
+    , score: Int
+    , food: Point
+    , seed: Random.Seed
+    }
 
 
 -- Constants
@@ -19,6 +29,7 @@ down = (0, 1)
 board = (80, 24)
 
 defaultSnake = [(44, 12), (35, 12)]
+defaultDir = right
 
 
 -- Utility functions
@@ -124,11 +135,44 @@ crawl : Direction -> Snake -> Snake
 crawl dir snake = (moveHead dir >> moveTail) snake
 
 
+{-| Determines if a point lies on the snake -}
+liesOnSnake : Point -> Snake -> Bool
+liesOnSnake pt snake = ((List.any) (liesOn pt) (unpack snake))
+
+
 {-| Determines if the snake lives, i.e. its head has not collided with the wall
  -  or itself -}
 isAlive : Snake -> Bool
-isAlive snake = case unpack snake of
-    (h', h) :: tail ->
-        inRange h' && not ((List.any) (liesOn h') tail)
+isAlive snake = case snake of
+    head :: tail ->
+        inRange head && not (head `liesOnSnake` tail)
     _ ->
         Debug.crash "Invalid snake"
+
+
+{-| Generates food coordinates that do not lie on the snake -}
+generateFood : Snake -> Random.Seed -> (Point, Random.Seed)
+generateFood snake seed =
+    let
+        (w, h) = board
+        foodGen = Random.pair (Random.int 0 (w - 1)) (Random.int 0 (h - 1))
+        (food, seed') = Random.generate foodGen seed
+    in
+        if food `liesOnSnake` snake
+            then generateFood snake seed'
+            else (food, seed')
+
+
+{-| Generates a new game given a seed -}
+generateGame : Random.Seed -> Game
+generateGame seed =
+    let
+        (food, seed') = generateFood defaultSnake seed
+    in
+        { snake = defaultSnake
+        , dir = defaultDir
+        , dead = False
+        , score = 0
+        , food = food
+        , seed = seed'
+        }

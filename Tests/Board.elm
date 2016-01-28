@@ -1,23 +1,31 @@
 module Tests.Board where
 
 import Graphics.Element exposing (Element)
+import Random
+import List
+import Debug
 
 import ElmTest exposing
     ( suite, test
-    , assertEqual, assertNotEqual
+    , assert, assertEqual, assertNotEqual
     , elementRunner
     )
 
 import Board exposing
-    ( left, right, up, down
+    ( left, right, up, down, board
     , plus, minus
     , norm, normal
     , cross, dot
     , liesOn
     , inRange
     , unpack, pack
-    , moveHead, moveTail, crawl, isAlive
+    , moveHead, moveTail, crawl
+    , liesOnSnake, isAlive
+    , generateFood, generateGame
     )
+
+
+assertNot = assert << not
 
 
 vectors = suite "Board vectors"
@@ -49,26 +57,26 @@ vectors = suite "Board vectors"
         ]
     , suite "liesOn"
         [ test "in segment"
-            <| assertEqual True ((4, 2) `liesOn` ((-3, 2), (5, 2)))
+            <| assert ((4, 2) `liesOn` ((-3, 2), (5, 2)))
         , test "at end point"
-            <| assertEqual True ((4, 2) `liesOn` ((4, 2), (5, 2)))
+            <| assert ((4, 2) `liesOn` ((4, 2), (5, 2)))
         , test "out of segment"
-            <| assertEqual False ((-4, 2) `liesOn` ((-3, 2), (5, 2)))
+            <| assertNot ((-4, 2) `liesOn` ((-3, 2), (5, 2)))
         , test "slanted line"
-            <| assertEqual True ((5, 3) `liesOn` ((0, 0), (50, 30)))
+            <| assert ((5, 3) `liesOn` ((0, 0), (50, 30)))
         , test "out of line"
-            <| assertEqual False ((3, 3) `liesOn` ((0, 1), (5, 5)))
+            <| assertNot ((3, 3) `liesOn` ((0, 1), (5, 5)))
         , test "vertical line"
-            <| assertEqual True ((0, 0) `liesOn` ((0, -5), (0, 5)))
+            <| assert ((0, 0) `liesOn` ((0, -5), (0, 5)))
         ]
     ]
 
 
 utils = suite "Board utils"
     [ suite "inRange"
-        [ test "normal case" <| assertEqual True (inRange (5, 3))
-        , test "out of range" <| assertEqual False (inRange (80, 20))
-        , test "out of range" <| assertEqual False (inRange (-1, 0))
+        [ test "normal case" <| assert (inRange (5, 3))
+        , test "out of range" <| assertNot (inRange (80, 20))
+        , test "out of range" <| assertNot (inRange (-1, 0))
         ]
     , suite "unpack"
         [ test "normal case"
@@ -117,19 +125,60 @@ moveSnake = suite "Board snake moving"
             <| assertEqual [(1, 1), (1, 2), (5, 2)]
                     (crawl up [(1, 2), (5, 2), (5, 3)])
         ]
+    , suite "liesOnSnake"
+        [ test "head is on snake"
+            <| assert ((1, 2) `liesOnSnake` [(1, 2), (5, 2), (5, 6)])
+        , test "middle of snake"
+            <| assert ((5, 4) `liesOnSnake` [(1, 2), (5, 2), (5, 6)])
+        , test "outside snake"
+            <| assertNot ((0, 0) `liesOnSnake` [(1, 2), (5, 2), (5, 6)])
+        ]
     , suite "isAlive"
         [ test "trivial case"
-            <| assertEqual True (isAlive [(3, 5), (8, 5)])
+            <| assert (isAlive [(3, 5), (8, 5)])
         , test "hit wall"
-            <| assertEqual False (isAlive [(-1, 5), (6, 5)])
+            <| assertNot (isAlive [(-1, 5), (6, 5)])
         , test "almost hit wall"
-            <| assertEqual True (isAlive [(0, 5), (6, 5)])
+            <| assert (isAlive [(0, 5), (6, 5)])
         , test "hit self"
-            <| assertEqual False
-                    (isAlive [(0, 5), (3, 5), (3, 2), (0, 2), (0, 7)])
+            <| assertNot (isAlive [(0, 5), (3, 5), (3, 2), (0, 2), (0, 7)])
         , test "almost hit self"
-            <| assertEqual True
-                    (isAlive [(1, 5), (3, 5), (3, 2), (0, 2), (0, 7)])
+            <| assert (isAlive [(1, 5), (3, 5), (3, 2), (0, 2), (0, 7)])
+        ]
+    ]
+
+
+gameLoop = suite "Board game loop"
+    [ suite "generateFood"
+        [ test "in range"
+            <| (
+                let
+                    seed = Random.initialSeed 123456
+                    (food, _) = generateFood [(0, 0), (0, 10)] seed
+                in
+                    assert (inRange food)
+               )
+        , test "only one possible cell"
+            <| (
+                let
+                    (w, h) = board
+                    seed = Random.initialSeed 123456
+
+                    snake' = List.concatMap
+                        (\y -> let (l, r) = ((0, y), (w - 1, y)) in
+                            if y % 2 == 0 then [l, r] else [r, l])
+                        [0..(h - 1)]
+                    snake = case snake' of
+                        _ :: tail -> (1, 0) :: tail
+                        _ -> Debug.crash "Invalid snake"
+
+                    (food, _) = generateFood snake seed
+                in
+                    assertEqual (0, 0) food
+               )
+        ]
+    , suite "tickGame"
+        [
         ]
     ]
 
@@ -138,6 +187,7 @@ tests = suite "Board"
     [ vectors
     , utils
     , moveSnake
+    , gameLoop
     ]
 
 
